@@ -1070,7 +1070,6 @@ rm -f /tmp/GeoIP.dat
 rm -f /tmp/GeoLiteCity.dat
 rm -f /tmp/GeoLiteCity.dat.gz
 rm -f /opt/bro/etc/node.cfg
-
 #########################################
 # Create files/dirs as necessary
 #########################################
@@ -1112,11 +1111,12 @@ echo "8"
 echo "# Please wait while stopping services..." | tee -a $LOG
 
 # Stop Elasticsearch and all other processes
+(
 so-stop >> $LOG 2>&1
 pkill suricata
 pkill snort
 pkill autossh
-
+) || true
 # Delete any Elasticsearch or Logstash data
 rm -rf /nsm/elasticsearch/nodes
 rm -rf /nsm/logstash/queue/main/*
@@ -1185,7 +1185,7 @@ fi
 #########################################
 # PF_RING
 #########################################
-rmmod pf_ring >> $LOG 2>&1
+( rmmod pf_ring >> $LOG 2>&1 ) || true
 echo "options pf_ring transparent_mode=0 min_num_slots=$PF_RING_SLOTS" > /etc/modprobe.d/pf_ring.conf
 
 #########################################
@@ -1206,7 +1206,7 @@ SENSORNAME="$HOSTNAME-ossec"
 sed -i "s|^set HOSTNAME.*$|set HOSTNAME $SENSORNAME|g" /etc/nsm/ossec/ossec_agent.conf
 sed -i "s|^set NET_GROUP.*$|set NET_GROUP $SENSORNAME|g" /etc/nsm/ossec/ossec_agent.conf
 sed -i "s|^set SERVER_HOST.*$|set SERVER_HOST $SERVERNAME|g" /etc/nsm/ossec/ossec_agent.conf
-pkill -f ossec_agent
+pkill -f ossec_agent || true
 
 #########################################
 # Add the Sguil server if necessary
@@ -1638,7 +1638,7 @@ if [ "$SERVERNAME" = "localhost" ]; then
 	ETOPEN)
 		echo "Already configured for Emerging Threats Open ruleset." >> $LOG 2>&1
 		# Test Internet access
-		curl -s $ET_URL >/dev/null 2>&1 && INTERNET="UP"
+		curl -s $ET_URL >/dev/null 2>&1 && INTERNET="UP" || true
 		;;
 	ETPRO)
 		echo "Configuring for ETPRO ruleset." >> $LOG 2>&1
@@ -1648,7 +1648,7 @@ if [ "$SERVERNAME" = "localhost" ]; then
 		# Un-comment emergingthreatspro.com
 		sed -i "s\#rule_url=https://rules.emergingthreatspro.com/|etpro.rules.tar.gz|<et oinkcode>\rule_url=https://rules.emergingthreatspro.com/|etpro.rules.tar.gz|$OINKCODE\g" $PP_CONF >> $LOG 2>&1
 		# Test Internet access
-		curl -s $ET_URL >/dev/null 2>&1 && INTERNET="UP"
+		curl -s $ET_URL >/dev/null 2>&1 && INTERNET="UP" || true
 		;;
 	TALOS)
 		echo "Configuring for Snort Subscriber (Talos) ruleset only and setting a Snort Subscriber policy." >> $LOG 2>&1
@@ -1661,7 +1661,7 @@ if [ "$SERVERNAME" = "localhost" ]; then
 		# Set Snort Subscriber (Talos) Policy.
 		sed -i "s|# ips_policy=security|ips_policy=$TALOS_POLICY|g" $PP_CONF >> $LOG 2>&1
 		# Test Internet access
-		curl -s $TALOS_URL >/dev/null 2>&1 && INTERNET="UP"
+		curl -s $TALOS_URL >/dev/null 2>&1 && INTERNET="UP" || true
 		;;
 	TALOSET)
 		echo "Configuring for Snort Subscriber (Talos) and Emerging Threats NoGPL rulesets" >> $LOG 2>&1
@@ -1672,7 +1672,7 @@ if [ "$SERVERNAME" = "localhost" ]; then
 		# Change open to open-nogpl
 		sed -i 's\rule_url=https://rules.emergingthreats.net/|emerging.rules.tar.gz|open\rule_url=https://rules.emergingthreats.net/|emerging.rules.tar.gz|open-nogpl\g' $PP_CONF >> $LOG 2>&1
 		# Test Internet access
-		curl -s $ET_URL >/dev/null 2>&1 && curl -s $TALOS_URL >/dev/null 2>&1 && INTERNET="UP"
+		( curl -s $ET_URL >/dev/null 2>&1 && curl -s $TALOS_URL >/dev/null 2>&1 ) && INTERNET="UP" || true
 		;;
 	esac
 
@@ -2384,7 +2384,9 @@ if [ "$OUTPUT" = "gui" ]; then
 	zenity --progress --title="$TITLE" --text="Please wait while making changes to the system..." --percentage=0 --auto-close
 else
 	echo "Please wait while..."
-	CONFIGURE_SERVICES | grep --line-buffered "^#" | sed 's|# Please wait while||g'
+	set -eo pipefail
+	CONFIGURE_SERVICES | grep --line-buffered "^#" || true | sed 's|# Please wait while||g' || true
+	set +eo pipefail
 fi
 
 # SERVER_QUEUE will interactively prompt for password
